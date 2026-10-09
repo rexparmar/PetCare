@@ -1,0 +1,29 @@
+{
+  "name": "petcare",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "apps/*"
+  ],
+  "scripts": {
+    "dev": "concurrently -n api,web -c green,cyan \"npm run dev -w @petcare/api\" \"npm run dev -w @petcare/web\"",
+    "build": "npm run build -w @petcare/api && npm run build -w @petcare/web",
+    "test": "npm run test -w @petcare/api && npm run test -w @petcare/web",
+    "test:api": "npm run test -w @petcare/api",
+    "test:web": "npm run test -w @petcare/web",
+    "test:e2e": "npm run test:e2e -w @petcare/web",
+    "lint": "npm run lint -w @petcare/api && npm run lint -w @petcare/web",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "db:generate": "prisma generate --schema apps/api/prisma/schema.prisma",
+    "db:migrate": "prisma migrate dev --schema apps/api/prisma/schema.prisma",
+    "db:studio": "prisma studio --schema apps/api/prisma/schema.prisma"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1",
+    "prettier": "^3.6.2"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

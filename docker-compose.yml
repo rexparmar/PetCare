@@ -1,0 +1,35 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: petcare
+      POSTGRES_PASSWORD: petcare
+      POSTGRES_DB: petcare
+    ports:
+      - "5432:5432"
+    volumes:
+      - petcare_postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U petcare -d petcare"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  postgres-test:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: petcare
+      POSTGRES_PASSWORD: petcare
+      POSTGRES_DB: petcare_test
+    ports:
+      - "5433:5432"
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U petcare -d petcare_test"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  petcare_postgres:

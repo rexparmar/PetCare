@@ -1,0 +1,102 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  UNKNOWN
+}
+
+enum HealthRecordType {
+  VACCINATION
+  MEDICAL_CHECKUP
+  TREATMENT
+  SURGERY
+  OTHER
+}
+
+enum AppointmentStatus {
+  SCHEDULED
+  COMPLETED
+  CANCELLED
+}
+
+model User {
+  id           String        @id @default(uuid()) @db.Uuid
+  fullName     String        @db.VarChar(120)
+  email        String        @unique @db.VarChar(320)
+  passwordHash String
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  sessions     Session[]
+  pets         Pet[]
+}
+
+model Session {
+  id        String   @id @default(uuid()) @db.Uuid
+  tokenHash String   @unique @db.Char(64)
+  userId    String   @db.Uuid
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model Pet {
+  id            String         @id @default(uuid()) @db.Uuid
+  name          String         @db.VarChar(100)
+  species       String         @db.VarChar(80)
+  breed         String?        @db.VarChar(120)
+  dateOfBirth   DateTime?      @db.Date
+  gender        Gender         @default(UNKNOWN)
+  weight        Float?
+  medicalNotes  String?
+  ownerId       String         @db.Uuid
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  owner         User           @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  healthRecords HealthRecord[]
+  appointments  Appointment[]
+
+  @@index([ownerId])
+  @@index([ownerId, name])
+}
+
+model HealthRecord {
+  id               String           @id @default(uuid()) @db.Uuid
+  petId            String           @db.Uuid
+  recordType       HealthRecordType
+  title            String           @db.VarChar(150)
+  description      String?
+  recordDate       DateTime         @db.Date
+  veterinarianName String?          @db.VarChar(150)
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  pet              Pet              @relation(fields: [petId], references: [id], onDelete: Cascade)
+
+  @@index([petId, recordDate])
+}
+
+model Appointment {
+  id              String            @id @default(uuid()) @db.Uuid
+  petId           String            @db.Uuid
+  appointmentDate DateTime
+  providerName    String            @db.VarChar(150)
+  reason          String            @db.VarChar(200)
+  notes           String?
+  status          AppointmentStatus @default(SCHEDULED)
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  pet             Pet               @relation(fields: [petId], references: [id], onDelete: Cascade)
+
+  @@index([petId])
+  @@index([appointmentDate, status])
+}
