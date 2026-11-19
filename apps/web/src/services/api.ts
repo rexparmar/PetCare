@@ -35,7 +35,8 @@ export async function api<T>(
   const method = (options.method ?? "GET").toUpperCase();
   const headers = new Headers(options.headers);
   headers.set("Accept", "application/json");
-  if (options.body) headers.set("Content-Type", "application/json");
+  if (options.body && !headers.has("Content-Type"))
+    headers.set("Content-Type", "application/json");
   if (!["GET", "HEAD", "OPTIONS"].includes(method)) {
     headers.set("X-CSRF-Token", await csrfToken());
   }
@@ -62,4 +63,17 @@ export async function api<T>(
   if (response.status === 204) return undefined as T;
   const payload = (await response.json()) as { data: T };
   return payload.data;
+}
+
+export async function apiBlob(path: string): Promise<Blob> {
+  const response = await fetch(`${API_URL}${path}`, {
+    credentials: "include",
+  });
+  if (!response.ok)
+    throw new ApiError(
+      "Unable to load the image.",
+      response.status,
+      "REQUEST_FAILED",
+    );
+  return response.blob();
 }

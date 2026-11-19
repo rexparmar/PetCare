@@ -83,6 +83,7 @@ model Pet {
   appointments  Appointment[]
   medications   Medication[]
   activities    Activity[]
+  photos        PetPhoto[]
 
   @@index([ownerId])
   @@index([ownerId, name])
@@ -150,4 +151,18 @@ model Activity {
   pet             Pet          @relation(fields: [petId], references: [id], onDelete: Cascade)
 
   @@index([petId, activityDate])
+}
+
+model PetPhoto {
+  id        String   @id @default(uuid()) @db.Uuid
+  petId     String   @db.Uuid
+  caption   String?  @db.VarChar(200)
+  width     Int
+  height    Int
+  sizeBytes Int
+  data      Bytes
+  createdAt DateTime @default(now())
+  pet       Pet      @relation(fields: [petId], references: [id], onDelete: Cascade)
+
+  @@index([petId, createdAt])
 }

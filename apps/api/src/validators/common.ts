@@ -38,3 +38,8 @@ export const activityParamsSchema = z.object({
   petId: z.string().uuid(),
   activityId: z.string().uuid(),
 });
+
+export const photoParamsSchema = z.object({
+  petId: z.string().uuid(),
+  photoId: z.string().uuid(),
+});

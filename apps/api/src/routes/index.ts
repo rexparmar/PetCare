@@ -6,6 +6,7 @@ import { appointmentRouter } from "./appointment.routes.js";
 import { authRouter } from "./auth.routes.js";
 import { healthRecordRouter } from "./health-record.routes.js";
 import { medicationRouter } from "./medication.routes.js";
+import { photoRouter } from "./photo.routes.js";
 import { petRouter } from "./pet.routes.js";
 
 export const apiRouter = Router();
@@ -17,6 +18,7 @@ apiRouter.use("/auth", authRouter);
 apiRouter.use("/pets/:petId/health-records", requireAuth, healthRecordRouter);
 apiRouter.use("/pets/:petId/medications", requireAuth, medicationRouter);
 apiRouter.use("/pets/:petId/activities", requireAuth, activityRouter);
+apiRouter.use("/pets/:petId/photos", requireAuth, photoRouter);
 apiRouter.use("/pets", requireAuth, petRouter);
 apiRouter.use("/appointments", requireAuth, appointmentRouter);
 apiRouter.get("/dashboard", requireAuth, dashboard);

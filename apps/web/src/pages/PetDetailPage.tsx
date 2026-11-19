@@ -5,6 +5,7 @@ import {
   CalendarPlus,
   Edit3,
   HeartPulse,
+  Images,
   Pill,
   Scale,
   Trash2,
@@ -136,6 +137,12 @@ export function PetDetailPage() {
               className={`${buttonClass("secondary")} w-full justify-start`}
             >
               <Activity size={18} className="text-pine-600" /> Track activity
+            </Link>
+            <Link
+              to={`/pets/${pet.id}/photos`}
+              className={`${buttonClass("secondary")} w-full justify-start`}
+            >
+              <Images size={18} className="text-pine-600" /> Photo gallery
             </Link>
             <Link
               to={`/appointments/new?petId=${pet.id}`}

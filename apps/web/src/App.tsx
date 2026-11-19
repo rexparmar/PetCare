@@ -10,6 +10,7 @@ import { HealthRecordsPage } from "./pages/HealthRecordsPage";
 import { LandingPage } from "./pages/LandingPage";
 import { LoginPage } from "./pages/LoginPage";
 import { MedicationsPage } from "./pages/MedicationsPage";
+import { PhotosPage } from "./pages/PhotosPage";
 import { PetDetailPage } from "./pages/PetDetailPage";
 import { PetFormPage } from "./pages/PetFormPage";
 import { PetsPage } from "./pages/PetsPage";
@@ -42,6 +43,8 @@ export function App() {
           <Route path="/medications" element={<MedicationsPage />} />
           <Route path="/pets/:petId/activities" element={<ActivitiesPage />} />
           <Route path="/activities" element={<ActivitiesPage />} />
+          <Route path="/pets/:petId/photos" element={<PhotosPage />} />
+          <Route path="/photos" element={<PhotosPage />} />
           <Route path="/appointments" element={<AppointmentsPage />} />
           <Route path="/appointments/new" element={<AppointmentFormPage />} />
           <Route

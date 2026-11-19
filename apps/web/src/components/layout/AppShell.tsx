@@ -2,6 +2,7 @@ import {
   Activity,
   CalendarDays,
   HeartPulse,
+  Images,
   LayoutDashboard,
   LogOut,
   Menu,
@@ -24,6 +25,7 @@ const navItems = [
   { to: "/health-records", label: "Health records", icon: HeartPulse },
   { to: "/medications", label: "Medications", icon: Pill },
   { to: "/activities", label: "Activity", icon: Activity },
+  { to: "/photos", label: "Photos", icon: Images },
   { to: "/account", label: "My account", icon: UserRound },
 ];
 

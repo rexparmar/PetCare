@@ -212,6 +212,30 @@ Authentication, ownership, and CSRF required. Accepts one or more fields.
 
 Authentication, ownership, and CSRF required. Returns HTTP 204.
 
+## Photos
+
+Photo metadata fields are `id`, `petId`, `caption`, `width`, `height`, `sizeBytes`, and `createdAt`. The image bytes are stored in PostgreSQL and are never included in JSON responses. Only JPEG images up to 1.5 MB are accepted (the web app resizes and re-encodes images before upload), and a pet can have at most 50 photos.
+
+### `GET /pets/:petId/photos`
+
+Authentication and pet ownership required. Returns up to 100 photos, newest first, without image bytes.
+
+### `POST /pets/:petId/photos?width=800&height=600&caption=Sunny%20day`
+
+Authentication, ownership, and CSRF required. The request body is the raw JPEG with `Content-Type: image/jpeg`. `width` and `height` (1-10000) are required query values; `caption` (up to 200 characters) is optional. Returns HTTP 201 with the photo metadata. Non-JPEG content returns 400, files over 1.5 MB return 413, and a full gallery returns 409.
+
+### `GET /pets/:petId/photos/:photoId/file`
+
+Authentication and ownership required. Returns the JPEG bytes with `Content-Type: image/jpeg` and `Cache-Control: private`.
+
+### `PATCH /pets/:petId/photos/:photoId`
+
+Authentication, ownership, and CSRF required. Body: `{ "caption": "New caption" }`, or `{ "caption": null }` to clear it.
+
+### `DELETE /pets/:petId/photos/:photoId`
+
+Authentication, ownership, and CSRF required. Returns HTTP 204.
+
 ## Dashboard and service status
 
 ### `GET /dashboard`

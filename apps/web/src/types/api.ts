@@ -70,6 +70,16 @@ export interface PetActivity {
   updatedAt: string;
 }
 
+export interface PetPhoto {
+  id: string;
+  petId: string;
+  caption: string | null;
+  width: number;
+  height: number;
+  sizeBytes: number;
+  createdAt: string;
+}
+
 export interface Appointment {
   id: string;
   petId: string;

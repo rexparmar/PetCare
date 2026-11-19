@@ -44,6 +44,7 @@ async function createPet(agent: SuperAgentTest, name = "Milo") {
 }
 
 beforeEach(async () => {
+  await prisma.petPhoto.deleteMany();
   await prisma.activity.deleteMany();
   await prisma.medication.deleteMany();
   await prisma.appointment.deleteMany();
@@ -501,6 +502,146 @@ describe("activities", () => {
     expect(
       (await removeActivity(other, pet.id, created.body.data.id)).status,
     ).toBe(404);
+  });
+});
+
+describe("photos", () => {
+  // Only the leading JPEG signature matters to the API.
+  const jpeg = (size = 200) =>
+    Buffer.concat([
+      Buffer.from([0xff, 0xd8, 0xff, 0xe0]),
+      Buffer.alloc(size, 7),
+    ]);
+  const details = "width=800&height=600&caption=Sunny%20day";
+
+  async function addPhoto(
+    agent: SuperAgentTest,
+    petId: string,
+    options: { body?: Buffer; type?: string; query?: string } = {},
+  ) {
+    const token = await csrf(agent);
+    return agent
+      .post(`/api/pets/${petId}/photos?${options.query ?? details}`)
+      .set("x-csrf-token", token)
+      .set("Content-Type", options.type ?? "image/jpeg")
+      .send(options.body ?? jpeg());
+  }
+
+  async function changePhoto(
+    agent: SuperAgentTest,
+    petId: string,
+    id: string,
+    body: Record<string, unknown>,
+  ) {
+    const token = await csrf(agent);
+    return agent
+      .patch(`/api/pets/${petId}/photos/${id}`)
+      .set("x-csrf-token", token)
+      .send(body);
+  }
+
+  async function removePhoto(agent: SuperAgentTest, petId: string, id: string) {
+    const token = await csrf(agent);
+    return agent
+      .delete(`/api/pets/${petId}/photos/${id}`)
+      .set("x-csrf-token", token);
+  }
+
+  it("uploads, lists, serves, captions, and deletes a photo", async () => {
+    const agent = request.agent(app);
+    await register(agent);
+    const pet = (await createPet(agent)).body.data;
+    const original = jpeg(500);
+
+    const created = await addPhoto(agent, pet.id, { body: original });
+    expect(created.status).toBe(201);
+    expect(created.body.data).toMatchObject({
+      caption: "Sunny day",
+      width: 800,
+      height: 600,
+      sizeBytes: original.length,
+    });
+    expect(created.body.data.data).toBeUndefined();
+
+    const list = await agent.get(`/api/pets/${pet.id}/photos`).expect(200);
+    expect(list.body.data).toHaveLength(1);
+    expect(list.body.data[0].data).toBeUndefined();
+
+    const file = await agent
+      .get(`/api/pets/${pet.id}/photos/${created.body.data.id}/file`)
+      .buffer(true)
+      .parse((response, callback) => {
+        const chunks: Buffer[] = [];
+        response.on("data", (chunk: Buffer) => chunks.push(chunk));
+        response.on("end", () => callback(null, Buffer.concat(chunks)));
+      })
+      .expect(200);
+    expect(file.headers["content-type"]).toContain("image/jpeg");
+    expect(Buffer.compare(file.body as Buffer, original)).toBe(0);
+
+    const renamed = await changePhoto(agent, pet.id, created.body.data.id, {
+      caption: "  New caption  ",
+    });
+    expect(renamed.status).toBe(200);
+    expect(renamed.body.data.caption).toBe("New caption");
+    const cleared = await changePhoto(agent, pet.id, created.body.data.id, {
+      caption: null,
+    });
+    expect(cleared.body.data.caption).toBeNull();
+
+    expect(
+      (await removePhoto(agent, pet.id, created.body.data.id)).status,
+    ).toBe(204);
+    await agent
+      .get(`/api/pets/${pet.id}/photos/${created.body.data.id}/file`)
+      .expect(404);
+  });
+
+  it("rejects files that are not valid JPEG uploads", async () => {
+    const agent = request.agent(app);
+    await register(agent);
+    const pet = (await createPet(agent)).body.data;
+    const png = Buffer.concat([
+      Buffer.from([0x89, 0x50, 0x4e, 0x47]),
+      Buffer.alloc(100),
+    ]);
+
+    expect((await addPhoto(agent, pet.id, { body: png })).status).toBe(400);
+    expect(
+      (await addPhoto(agent, pet.id, { body: Buffer.alloc(0) })).status,
+    ).toBe(400);
+    expect(
+      (await addPhoto(agent, pet.id, { type: "application/octet-stream" }))
+        .status,
+    ).toBe(400);
+    expect(
+      (await addPhoto(agent, pet.id, { query: "caption=No%20size" })).status,
+    ).toBe(400);
+    expect(
+      (await addPhoto(agent, pet.id, { body: jpeg(1_700_000) })).status,
+    ).toBe(413);
+    expect(
+      (await agent.get(`/api/pets/${pet.id}/photos`).expect(200)).body.data,
+    ).toHaveLength(0);
+  });
+
+  it("rejects cross-user photo access", async () => {
+    const owner = request.agent(app);
+    await register(owner);
+    const pet = (await createPet(owner)).body.data;
+    const created = await addPhoto(owner, pet.id);
+    expect(created.status).toBe(201);
+    const id = created.body.data.id;
+
+    const other = request.agent(app);
+    await register(other, "sam@example.com", "Sam Lee");
+    await other.get(`/api/pets/${pet.id}/photos`).expect(404);
+    await other.get(`/api/pets/${pet.id}/photos/${id}/file`).expect(404);
+    expect((await addPhoto(other, pet.id)).status).toBe(404);
+    expect(
+      (await changePhoto(other, pet.id, id, { caption: "x" })).status,
+    ).toBe(404);
+    expect((await removePhoto(other, pet.id, id)).status).toBe(404);
   });
 });
 
