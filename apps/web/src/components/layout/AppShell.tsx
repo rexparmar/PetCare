@@ -1,10 +1,12 @@
 import {
+  Activity,
   CalendarDays,
   HeartPulse,
   LayoutDashboard,
   LogOut,
   Menu,
   PawPrint,
+  Pill,
   UserRound,
   X,
 } from "lucide-react";
@@ -20,6 +22,8 @@ const navItems = [
   { to: "/pets", label: "My pets", icon: PawPrint },
   { to: "/appointments", label: "Appointments", icon: CalendarDays },
   { to: "/health-records", label: "Health records", icon: HeartPulse },
+  { to: "/medications", label: "Medications", icon: Pill },
+  { to: "/activities", label: "Activity", icon: Activity },
   { to: "/account", label: "My account", icon: UserRound },
 ];
 

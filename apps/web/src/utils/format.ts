@@ -21,11 +21,31 @@ export function localDateInputValue(date = new Date()) {
     .slice(0, 10);
 }
 
+export function localDateTimeInputValue(date = new Date()) {
+  return new Date(date.getTime() - date.getTimezoneOffset() * 60_000)
+    .toISOString()
+    .slice(0, 16);
+}
+
+export function formatDuration(minutes: number) {
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+  if (!hours) return `${rest} min`;
+  return rest ? `${hours} h ${rest} min` : `${hours} h`;
+}
+
 export function formatDateTime(value: string) {
   return new Intl.DateTimeFormat(undefined, {
     dateStyle: "medium",
     timeStyle: "short",
   }).format(new Date(value));
+}
+
+export function formatTimeOfDay(value: string) {
+  const [hours, minutes] = value.split(":").map(Number);
+  return new Intl.DateTimeFormat(undefined, { timeStyle: "short" }).format(
+    new Date(2000, 0, 1, hours, minutes),
+  );
 }
 
 export function titleCase(value: string) {

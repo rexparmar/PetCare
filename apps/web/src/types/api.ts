@@ -2,6 +2,10 @@ export type Gender = "MALE" | "FEMALE" | "UNKNOWN";
 export type HealthRecordType =
   "VACCINATION" | "MEDICAL_CHECKUP" | "TREATMENT" | "SURGERY" | "OTHER";
 export type AppointmentStatus = "SCHEDULED" | "COMPLETED" | "CANCELLED";
+export type ActivityType =
+  "WALK" | "PLAY" | "FEEDING" | "GROOMING" | "TRAINING" | "OTHER";
+export type MedicationFrequency =
+  "ONCE_DAILY" | "TWICE_DAILY" | "THREE_TIMES_DAILY" | "AS_NEEDED";
 
 export interface User {
   id: string;
@@ -37,6 +41,33 @@ export interface HealthRecord {
   createdAt: string;
   updatedAt: string;
   pet?: Pick<Pet, "id" | "name" | "species">;
+}
+
+export interface Medication {
+  id: string;
+  petId: string;
+  name: string;
+  dosage: string;
+  frequency: MedicationFrequency;
+  timesOfDay: string[];
+  startDate: string;
+  endDate: string | null;
+  instructions: string | null;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PetActivity {
+  id: string;
+  petId: string;
+  activityType: ActivityType;
+  activityDate: string;
+  durationMinutes: number | null;
+  distanceKm: number | null;
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface Appointment {

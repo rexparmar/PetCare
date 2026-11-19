@@ -150,6 +150,68 @@ Authentication, ownership, and CSRF required. Accepts one or more appointment fi
 
 Authentication, ownership, and CSRF required. Performs history-preserving cancellation by setting status to `CANCELLED`; returns the updated appointment with HTTP 200.
 
+## Medications
+
+Medication fields are `id`, `petId`, `name`, `dosage`, `frequency`, `timesOfDay`, `startDate`, `endDate`, `instructions`, `isActive`, `createdAt`, and `updatedAt`. Frequency is `ONCE_DAILY`, `TWICE_DAILY`, `THREE_TIMES_DAILY`, or `AS_NEEDED`. `timesOfDay` holds 24-hour `HH:MM` strings and must contain exactly 1, 2, 3, or 0 entries respectively, with no duplicates. `endDate` (optional) cannot be before `startDate`.
+
+### `GET /pets/:petId/medications`
+
+Authentication and pet ownership required. Returns the pet's medications, active first, then newest start date.
+
+### `POST /pets/:petId/medications`
+
+Authentication, ownership, and CSRF required. Returns HTTP 201.
+
+```json
+{
+  "name": "Amoxicillin",
+  "dosage": "1 tablet (250 mg)",
+  "frequency": "TWICE_DAILY",
+  "timesOfDay": ["08:00", "20:00"],
+  "startDate": "2026-11-01",
+  "endDate": "2026-11-14",
+  "instructions": "Give with food"
+}
+```
+
+### `PATCH /pets/:petId/medications/:medicationId`
+
+Authentication, ownership, and CSRF required. Accepts one or more fields (for example `{ "isActive": false }` to stop a medication). The merged schedule is re-validated.
+
+### `DELETE /pets/:petId/medications/:medicationId`
+
+Authentication, ownership, and CSRF required. Returns HTTP 204.
+
+## Activities
+
+Activity fields are `id`, `petId`, `activityType`, `activityDate`, `durationMinutes`, `distanceKm`, `notes`, `createdAt`, and `updatedAt`. Type is `WALK`, `PLAY`, `FEEDING`, `GROOMING`, `TRAINING`, or `OTHER`. `activityDate` is an ISO timestamp and cannot be in the future (a five-minute clock-skew allowance applies). `durationMinutes` is an optional whole number from 1 to 1440; `distanceKm` is an optional positive number up to 500.
+
+### `GET /pets/:petId/activities`
+
+Authentication and pet ownership required. Returns up to the 200 most recent activities, newest first.
+
+### `POST /pets/:petId/activities`
+
+Authentication, ownership, and CSRF required. Returns HTTP 201.
+
+```json
+{
+  "activityType": "WALK",
+  "activityDate": "2026-11-10T14:30:00.000Z",
+  "durationMinutes": 45,
+  "distanceKm": 3.2,
+  "notes": "Park loop"
+}
+```
+
+### `PATCH /pets/:petId/activities/:activityId`
+
+Authentication, ownership, and CSRF required. Accepts one or more fields.
+
+### `DELETE /pets/:petId/activities/:activityId`
+
+Authentication, ownership, and CSRF required. Returns HTTP 204.
+
 ## Dashboard and service status
 
 ### `GET /dashboard`

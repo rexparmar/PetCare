@@ -2,12 +2,14 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import { GuestRoute, ProtectedRoute } from "./components/auth/RouteGuards";
 import { AppShell } from "./components/layout/AppShell";
 import { AccountPage } from "./pages/AccountPage";
+import { ActivitiesPage } from "./pages/ActivitiesPage";
 import { AppointmentFormPage } from "./pages/AppointmentFormPage";
 import { AppointmentsPage } from "./pages/AppointmentsPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { HealthRecordsPage } from "./pages/HealthRecordsPage";
 import { LandingPage } from "./pages/LandingPage";
 import { LoginPage } from "./pages/LoginPage";
+import { MedicationsPage } from "./pages/MedicationsPage";
 import { PetDetailPage } from "./pages/PetDetailPage";
 import { PetFormPage } from "./pages/PetFormPage";
 import { PetsPage } from "./pages/PetsPage";
@@ -33,6 +35,13 @@ export function App() {
             element={<HealthRecordsPage />}
           />
           <Route path="/health-records" element={<HealthRecordsPage />} />
+          <Route
+            path="/pets/:petId/medications"
+            element={<MedicationsPage />}
+          />
+          <Route path="/medications" element={<MedicationsPage />} />
+          <Route path="/pets/:petId/activities" element={<ActivitiesPage />} />
+          <Route path="/activities" element={<ActivitiesPage />} />
           <Route path="/appointments" element={<AppointmentsPage />} />
           <Route path="/appointments/new" element={<AppointmentFormPage />} />
           <Route

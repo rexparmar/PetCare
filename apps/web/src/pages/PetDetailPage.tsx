@@ -1,9 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  Activity,
   ArrowLeft,
   CalendarPlus,
   Edit3,
   HeartPulse,
+  Pill,
   Scale,
   Trash2,
 } from "lucide-react";
@@ -122,6 +124,18 @@ export function PetDetailPage() {
             >
               <HeartPulse size={18} className="text-pine-600" /> Manage health
               records
+            </Link>
+            <Link
+              to={`/pets/${pet.id}/medications`}
+              className={`${buttonClass("secondary")} w-full justify-start`}
+            >
+              <Pill size={18} className="text-pine-600" /> Manage medications
+            </Link>
+            <Link
+              to={`/pets/${pet.id}/activities`}
+              className={`${buttonClass("secondary")} w-full justify-start`}
+            >
+              <Activity size={18} className="text-pine-600" /> Track activity
             </Link>
             <Link
               to={`/appointments/new?petId=${pet.id}`}

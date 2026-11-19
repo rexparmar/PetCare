@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { rateLimit } from "express-rate-limit";
+import { env } from "../config/env.js";
 import * as authController from "../controllers/auth.controller.js";
 import { requireAuth } from "../middleware/auth.js";
 import { csrfProtection } from "../middleware/csrf.js";
@@ -11,6 +12,8 @@ export const authRouter = Router();
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   limit: 20,
+  // The integration tests register many accounts in one run; real traffic is still limited.
+  skip: () => env.NODE_ENV === "test",
   standardHeaders: "draft-8",
   legacyHeaders: false,
   message: {

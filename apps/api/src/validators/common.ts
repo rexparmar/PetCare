@@ -28,3 +28,13 @@ export function atLeastOneField<T extends z.ZodRawShape>(shape: T) {
       message: "At least one field is required.",
     });
 }
+
+export const medicationParamsSchema = z.object({
+  petId: z.string().uuid(),
+  medicationId: z.string().uuid(),
+});
+
+export const activityParamsSchema = z.object({
+  petId: z.string().uuid(),
+  activityId: z.string().uuid(),
+});

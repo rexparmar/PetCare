@@ -44,6 +44,8 @@ async function createPet(agent: SuperAgentTest, name = "Milo") {
 }
 
 beforeEach(async () => {
+  await prisma.activity.deleteMany();
+  await prisma.medication.deleteMany();
   await prisma.appointment.deleteMany();
   await prisma.healthRecord.deleteMany();
   await prisma.pet.deleteMany();
@@ -217,6 +219,288 @@ describe("health records", () => {
       .set("x-csrf-token", token)
       .send({ recordType: "OTHER", title: "Private", recordDate: "2026-01-01" })
       .expect(404);
+  });
+});
+
+describe("medications", () => {
+  const medication = {
+    name: "Amoxicillin",
+    dosage: "1 tablet (250 mg)",
+    frequency: "TWICE_DAILY",
+    timesOfDay: ["20:00", "08:00"],
+    startDate: "2026-11-01",
+    endDate: "2026-11-14",
+    instructions: "Give with food",
+  };
+
+  async function addMedication(
+    agent: SuperAgentTest,
+    petId: string,
+    body: Record<string, unknown> = {},
+  ) {
+    const token = await csrf(agent);
+    return agent
+      .post(`/api/pets/${petId}/medications`)
+      .set("x-csrf-token", token)
+      .send({ ...medication, ...body });
+  }
+
+  async function changeMedication(
+    agent: SuperAgentTest,
+    petId: string,
+    id: string,
+    body: Record<string, unknown>,
+  ) {
+    const token = await csrf(agent);
+    return agent
+      .patch(`/api/pets/${petId}/medications/${id}`)
+      .set("x-csrf-token", token)
+      .send(body);
+  }
+
+  async function removeMedication(
+    agent: SuperAgentTest,
+    petId: string,
+    id: string,
+  ) {
+    const token = await csrf(agent);
+    return agent
+      .delete(`/api/pets/${petId}/medications/${id}`)
+      .set("x-csrf-token", token);
+  }
+
+  it("creates, lists, updates, stops, and deletes a medication", async () => {
+    const agent = request.agent(app);
+    await register(agent);
+    const pet = (await createPet(agent)).body.data;
+
+    const created = await addMedication(agent, pet.id);
+    expect(created.status).toBe(201);
+    expect(created.body.data).toMatchObject({
+      name: "Amoxicillin",
+      frequency: "TWICE_DAILY",
+      timesOfDay: ["08:00", "20:00"],
+      isActive: true,
+    });
+
+    const list = await agent.get(`/api/pets/${pet.id}/medications`).expect(200);
+    expect(list.body.data).toHaveLength(1);
+
+    const updated = await changeMedication(
+      agent,
+      pet.id,
+      created.body.data.id,
+      { dosage: "2 tablets", isActive: false },
+    );
+    expect(updated.status).toBe(200);
+    expect(updated.body.data).toMatchObject({
+      dosage: "2 tablets",
+      isActive: false,
+      timesOfDay: ["08:00", "20:00"],
+    });
+
+    const removed = await removeMedication(agent, pet.id, created.body.data.id);
+    expect(removed.status).toBe(204);
+    const empty = await agent
+      .get(`/api/pets/${pet.id}/medications`)
+      .expect(200);
+    expect(empty.body.data).toHaveLength(0);
+  });
+
+  it("rejects schedules that do not match the frequency or dates", async () => {
+    const agent = request.agent(app);
+    await register(agent);
+    const pet = (await createPet(agent)).body.data;
+
+    expect(
+      (await addMedication(agent, pet.id, { timesOfDay: ["08:00"] })).status,
+    ).toBe(400);
+    expect(
+      (await addMedication(agent, pet.id, { timesOfDay: ["08:00", "08:00"] }))
+        .status,
+    ).toBe(400);
+    expect(
+      (await addMedication(agent, pet.id, { timesOfDay: ["8am", "20:00"] }))
+        .status,
+    ).toBe(400);
+    expect(
+      (await addMedication(agent, pet.id, { endDate: "2026-10-01" })).status,
+    ).toBe(400);
+    expect(
+      (
+        await addMedication(agent, pet.id, {
+          frequency: "AS_NEEDED",
+          timesOfDay: [],
+        })
+      ).status,
+    ).toBe(201);
+  });
+
+  it("rejects cross-user medication access", async () => {
+    const owner = request.agent(app);
+    await register(owner);
+    const pet = (await createPet(owner)).body.data;
+    const created = await addMedication(owner, pet.id);
+    expect(created.status).toBe(201);
+
+    const other = request.agent(app);
+    await register(other, "sam@example.com", "Sam Lee");
+    await other.get(`/api/pets/${pet.id}/medications`).expect(404);
+    expect(
+      (
+        await changeMedication(other, pet.id, created.body.data.id, {
+          isActive: false,
+        })
+      ).status,
+    ).toBe(404);
+    expect(
+      (await removeMedication(other, pet.id, created.body.data.id)).status,
+    ).toBe(404);
+  });
+});
+
+describe("activities", () => {
+  const walk = {
+    activityType: "WALK",
+    activityDate: "2026-11-10T14:30:00.000Z",
+    durationMinutes: 45,
+    distanceKm: 3.2,
+    notes: "Park loop",
+  };
+
+  async function addActivity(
+    agent: SuperAgentTest,
+    petId: string,
+    body: Record<string, unknown> = {},
+  ) {
+    const token = await csrf(agent);
+    return agent
+      .post(`/api/pets/${petId}/activities`)
+      .set("x-csrf-token", token)
+      .send({ ...walk, ...body });
+  }
+
+  async function changeActivity(
+    agent: SuperAgentTest,
+    petId: string,
+    id: string,
+    body: Record<string, unknown>,
+  ) {
+    const token = await csrf(agent);
+    return agent
+      .patch(`/api/pets/${petId}/activities/${id}`)
+      .set("x-csrf-token", token)
+      .send(body);
+  }
+
+  async function removeActivity(
+    agent: SuperAgentTest,
+    petId: string,
+    id: string,
+  ) {
+    const token = await csrf(agent);
+    return agent
+      .delete(`/api/pets/${petId}/activities/${id}`)
+      .set("x-csrf-token", token);
+  }
+
+  it("creates, lists newest first, updates, and deletes an activity", async () => {
+    const agent = request.agent(app);
+    await register(agent);
+    const pet = (await createPet(agent)).body.data;
+
+    const older = await addActivity(agent, pet.id);
+    expect(older.status).toBe(201);
+    expect(older.body.data).toMatchObject({
+      activityType: "WALK",
+      durationMinutes: 45,
+      distanceKm: 3.2,
+    });
+    const newer = await addActivity(agent, pet.id, {
+      activityType: "PLAY",
+      activityDate: "2026-11-11T09:00:00.000Z",
+      distanceKm: null,
+    });
+    expect(newer.status).toBe(201);
+
+    const list = await agent.get(`/api/pets/${pet.id}/activities`).expect(200);
+    expect(list.body.data.map((item: { id: string }) => item.id)).toEqual([
+      newer.body.data.id,
+      older.body.data.id,
+    ]);
+
+    const updated = await changeActivity(agent, pet.id, older.body.data.id, {
+      durationMinutes: 60,
+      notes: "Longer walk",
+    });
+    expect(updated.status).toBe(200);
+    expect(updated.body.data).toMatchObject({
+      durationMinutes: 60,
+      notes: "Longer walk",
+      distanceKm: 3.2,
+    });
+
+    const removed = await removeActivity(agent, pet.id, older.body.data.id);
+    expect(removed.status).toBe(204);
+    const remaining = await agent
+      .get(`/api/pets/${pet.id}/activities`)
+      .expect(200);
+    expect(remaining.body.data).toHaveLength(1);
+  });
+
+  it("rejects future dates and invalid numbers", async () => {
+    const agent = request.agent(app);
+    await register(agent);
+    const pet = (await createPet(agent)).body.data;
+    const tomorrow = new Date(Date.now() + 24 * 60 * 60_000).toISOString();
+
+    expect(
+      (await addActivity(agent, pet.id, { activityDate: tomorrow })).status,
+    ).toBe(400);
+    expect(
+      (await addActivity(agent, pet.id, { durationMinutes: 0 })).status,
+    ).toBe(400);
+    expect(
+      (await addActivity(agent, pet.id, { durationMinutes: 12.5 })).status,
+    ).toBe(400);
+    expect((await addActivity(agent, pet.id, { distanceKm: -1 })).status).toBe(
+      400,
+    );
+    expect(
+      (await addActivity(agent, pet.id, { activityType: "FLYING" })).status,
+    ).toBe(400);
+    expect(
+      (
+        await addActivity(agent, pet.id, {
+          durationMinutes: null,
+          distanceKm: null,
+          notes: null,
+        })
+      ).status,
+    ).toBe(201);
+  });
+
+  it("rejects cross-user activity access", async () => {
+    const owner = request.agent(app);
+    await register(owner);
+    const pet = (await createPet(owner)).body.data;
+    const created = await addActivity(owner, pet.id);
+    expect(created.status).toBe(201);
+
+    const other = request.agent(app);
+    await register(other, "sam@example.com", "Sam Lee");
+    await other.get(`/api/pets/${pet.id}/activities`).expect(404);
+    expect((await addActivity(other, pet.id)).status).toBe(404);
+    expect(
+      (
+        await changeActivity(other, pet.id, created.body.data.id, {
+          durationMinutes: 5,
+        })
+      ).status,
+    ).toBe(404);
+    expect(
+      (await removeActivity(other, pet.id, created.body.data.id)).status,
+    ).toBe(404);
   });
 });
 
