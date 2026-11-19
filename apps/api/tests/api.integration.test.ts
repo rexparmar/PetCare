@@ -1,7 +1,9 @@
 import request, { type SuperAgentTest } from "supertest";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { app } from "../src/app.js";
+import { env } from "../src/config/env.js";
 import { prisma } from "../src/lib/prisma.js";
+import { generateReminders } from "../src/services/notification.service.js";
 
 async function csrf(agent: SuperAgentTest) {
   const response = await agent.get("/api/auth/csrf").expect(200);
@@ -44,6 +46,10 @@ async function createPet(agent: SuperAgentTest, name = "Milo") {
 }
 
 beforeEach(async () => {
+  await prisma.notification.deleteMany();
+  await prisma.notificationPreference.deleteMany();
+  await prisma.clinicAppointmentRequest.deleteMany();
+  await prisma.clinicLink.deleteMany();
   await prisma.petPhoto.deleteMany();
   await prisma.activity.deleteMany();
   await prisma.medication.deleteMany();
@@ -642,6 +648,372 @@ describe("photos", () => {
       (await changePhoto(other, pet.id, id, { caption: "x" })).status,
     ).toBe(404);
     expect((await removePhoto(other, pet.id, id)).status).toBe(404);
+  });
+});
+
+describe("notifications", () => {
+  async function setPreferences(
+    agent: SuperAgentTest,
+    body: Record<string, unknown>,
+  ) {
+    const token = await csrf(agent);
+    return agent
+      .patch("/api/notifications/preferences")
+      .set("x-csrf-token", token)
+      .send(body);
+  }
+
+  async function userId(email = "alex@example.com") {
+    return (await prisma.user.findUniqueOrThrow({ where: { email } })).id;
+  }
+
+  it("stores preferences and validates them", async () => {
+    const agent = request.agent(app);
+    await register(agent);
+
+    const initial = await agent
+      .get("/api/notifications/preferences")
+      .expect(200);
+    expect(initial.body.data).toMatchObject({
+      timeZone: null,
+      medicationReminders: true,
+      appointmentReminders: true,
+      appointmentLeadHours: 24,
+    });
+
+    const updated = await setPreferences(agent, {
+      timeZone: "America/Toronto",
+      appointmentLeadHours: 2,
+    });
+    expect(updated.status).toBe(200);
+    expect(updated.body.data).toMatchObject({
+      timeZone: "America/Toronto",
+      appointmentLeadHours: 2,
+      medicationReminders: true,
+    });
+
+    expect(
+      (await setPreferences(agent, { timeZone: "Not/AZone" })).status,
+    ).toBe(400);
+    expect(
+      (await setPreferences(agent, { appointmentLeadHours: 0 })).status,
+    ).toBe(400);
+    expect((await setPreferences(agent, {})).status).toBe(400);
+  });
+
+  it("creates each medication reminder once and lets the owner read it", async () => {
+    const agent = request.agent(app);
+    await register(agent);
+    const pet = (await createPet(agent)).body.data;
+    await setPreferences(agent, { timeZone: "America/Toronto" });
+    const token = await csrf(agent);
+    await agent
+      .post(`/api/pets/${pet.id}/medications`)
+      .set("x-csrf-token", token)
+      .send({
+        name: "Amoxicillin",
+        dosage: "1 tablet",
+        frequency: "ONCE_DAILY",
+        timesOfDay: ["08:00"],
+        startDate: "2026-11-01",
+      })
+      .expect(201);
+    const owner = await userId();
+
+    // 13:10 UTC is 08:10 in Toronto, ten minutes after the dose time.
+    const now = new Date("2026-11-19T13:10:00.000Z");
+    expect(await generateReminders(now, owner)).toBe(1);
+    expect(await generateReminders(now, owner)).toBe(0);
+    expect(
+      await generateReminders(new Date("2026-11-19T13:40:00.000Z"), owner),
+    ).toBe(0);
+    expect(
+      await generateReminders(new Date("2026-11-20T13:10:00.000Z"), owner),
+    ).toBe(1);
+
+    const stored = await prisma.notification.findMany({
+      where: { userId: owner, type: "MEDICATION" },
+    });
+    expect(stored).toHaveLength(2);
+    expect(stored[0].title).toContain("Amoxicillin");
+
+    const list = await agent.get("/api/notifications").expect(200);
+    expect(list.body.data.items.length).toBeGreaterThanOrEqual(2);
+    expect(list.body.data.items[0].pet.name).toBe("Milo");
+
+    const readToken = await csrf(agent);
+    const read = await agent
+      .post(`/api/notifications/${stored[0].id}/read`)
+      .set("x-csrf-token", readToken)
+      .expect(200);
+    expect(read.body.data.readAt).not.toBeNull();
+
+    const allToken = await csrf(agent);
+    await agent
+      .post("/api/notifications/read-all")
+      .set("x-csrf-token", allToken)
+      .expect(200);
+    expect(
+      await prisma.notification.count({
+        where: { userId: owner, readAt: null },
+      }),
+    ).toBe(0);
+  });
+
+  it("reminds about appointments inside the lead window only", async () => {
+    const agent = request.agent(app);
+    await register(agent);
+    const pet = (await createPet(agent)).body.data;
+    await setPreferences(agent, {
+      timeZone: "UTC",
+      medicationReminders: false,
+      appointmentLeadHours: 24,
+    });
+    const owner = await userId();
+    const book = async (hoursAhead: number, reason: string) => {
+      const token = await csrf(agent);
+      return agent
+        .post("/api/appointments")
+        .set("x-csrf-token", token)
+        .send({
+          petId: pet.id,
+          appointmentDate: new Date(
+            Date.now() + hoursAhead * 3_600_000,
+          ).toISOString(),
+          providerName: "HappyPaws Clinic",
+          reason,
+        })
+        .expect(201);
+    };
+    await book(3, "Soon");
+    await book(60, "Much later");
+
+    expect(await generateReminders(new Date(), owner)).toBe(1);
+    expect(await generateReminders(new Date(), owner)).toBe(0);
+    const stored = await prisma.notification.findMany({
+      where: { userId: owner, type: "APPOINTMENT" },
+    });
+    expect(stored).toHaveLength(1);
+    expect(stored[0].message).toContain("Soon");
+  });
+
+  it("keeps notifications private and skips users without a time zone", async () => {
+    const owner = request.agent(app);
+    await register(owner);
+    const pet = (await createPet(owner)).body.data;
+    const token = await csrf(owner);
+    await owner
+      .post(`/api/pets/${pet.id}/medications`)
+      .set("x-csrf-token", token)
+      .send({
+        name: "Pimobendan",
+        dosage: "1 capsule",
+        frequency: "ONCE_DAILY",
+        timesOfDay: ["08:00"],
+        startDate: "2026-11-01",
+      })
+      .expect(201);
+    const ownerId = await userId();
+
+    // No preferences row yet, so nothing may be generated.
+    expect(
+      await generateReminders(new Date("2026-11-19T13:10:00.000Z"), ownerId),
+    ).toBe(0);
+
+    await setPreferences(owner, { timeZone: "America/Toronto" });
+    expect(
+      await generateReminders(new Date("2026-11-19T13:10:00.000Z"), ownerId),
+    ).toBe(1);
+    const created = await prisma.notification.findFirstOrThrow({
+      where: { userId: ownerId },
+    });
+
+    const other = request.agent(app);
+    await register(other, "sam@example.com", "Sam Lee");
+    const list = await other.get("/api/notifications").expect(200);
+    expect(list.body.data).toEqual({ items: [], unreadCount: 0 });
+    const otherToken = await csrf(other);
+    await other
+      .post(`/api/notifications/${created.id}/read`)
+      .set("x-csrf-token", otherToken)
+      .expect(404);
+  });
+});
+
+describe("clinic interface", () => {
+  // The next given weekday (0 = Sunday ... 6 = Saturday) at 15:00 UTC, which is
+  // 10:00 or 11:00 in Ottawa, at least two days from now.
+  function nextWeekday(day: number) {
+    const date = new Date(Date.now() + 2 * 86_400_000);
+    date.setUTCHours(15, 0, 0, 0);
+    while (date.getUTCDay() !== day) date.setUTCDate(date.getUTCDate() + 1);
+    return date.toISOString();
+  }
+
+  async function link(agent: SuperAgentTest, petId: string, clinicId: string) {
+    const token = await csrf(agent);
+    return agent
+      .put(`/api/pets/${petId}/clinic`)
+      .set("x-csrf-token", token)
+      .send({ clinicId });
+  }
+
+  async function book(agent: SuperAgentTest, petId: string, date: string) {
+    const token = await csrf(agent);
+    const response = await agent
+      .post("/api/appointments")
+      .set("x-csrf-token", token)
+      .send({
+        petId,
+        appointmentDate: date,
+        providerName: "Clinic",
+        reason: "Checkup",
+      })
+      .expect(201);
+    return response.body.data.id as string;
+  }
+
+  async function send(
+    agent: SuperAgentTest,
+    petId: string,
+    appointmentId: string,
+  ) {
+    const token = await csrf(agent);
+    return agent
+      .post(`/api/pets/${petId}/clinic/requests`)
+      .set("x-csrf-token", token)
+      .send({ appointmentId });
+  }
+
+  it("allows the browser to send PUT requests from the web app", async () => {
+    const preflight = await request(app)
+      .options("/api/pets/00000000-0000-4000-8000-000000000000/clinic")
+      .set("Origin", env.WEB_ORIGIN)
+      .set("Access-Control-Request-Method", "PUT")
+      .set("Access-Control-Request-Headers", "content-type,x-csrf-token");
+    expect(preflight.headers["access-control-allow-methods"]).toContain("PUT");
+  });
+
+  it("lists the simulated clinic directory", async () => {
+    const agent = request.agent(app);
+    await register(agent);
+    const response = await agent.get("/api/clinics").expect(200);
+    expect(response.body.data.length).toBeGreaterThanOrEqual(3);
+    expect(response.body.data[0]).toMatchObject({
+      id: expect.any(String),
+      name: expect.any(String),
+      hours: expect.any(String),
+    });
+    await request(app).get("/api/clinics").expect(401);
+  });
+
+  it("links a clinic and shares health records", async () => {
+    const agent = request.agent(app);
+    await register(agent);
+    const pet = (await createPet(agent)).body.data;
+    const share = async () => {
+      const token = await csrf(agent);
+      return agent
+        .post(`/api/pets/${pet.id}/clinic/share-records`)
+        .set("x-csrf-token", token);
+    };
+
+    expect(
+      (await agent.get(`/api/pets/${pet.id}/clinic`).expect(200)).body.data,
+    ).toBeNull();
+    expect((await link(agent, pet.id, "no-such-clinic")).status).toBe(404);
+    expect((await share()).status).toBe(409);
+
+    const linked = await link(agent, pet.id, "happypaws-downtown");
+    expect(linked.status).toBe(200);
+    expect(linked.body.data.clinic.name).toBe("HappyPaws Downtown Clinic");
+    expect((await share()).status).toBe(409); // no health records yet
+
+    const token = await csrf(agent);
+    await agent
+      .post(`/api/pets/${pet.id}/health-records`)
+      .set("x-csrf-token", token)
+      .send({
+        recordType: "VACCINATION",
+        title: "Rabies booster",
+        recordDate: "2026-09-15",
+      })
+      .expect(201);
+    const shared = await share();
+    expect(shared.status).toBe(200);
+    expect(shared.body.data).toMatchObject({ sharedCount: 1 });
+    expect(shared.body.data.receiptId).toMatch(/^REC-/);
+
+    const current = await agent.get(`/api/pets/${pet.id}/clinic`).expect(200);
+    expect(current.body.data).toMatchObject({ lastSharedCount: 1 });
+
+    const unlinkToken = await csrf(agent);
+    await agent
+      .delete(`/api/pets/${pet.id}/clinic`)
+      .set("x-csrf-token", unlinkToken)
+      .expect(204);
+    expect(
+      (await agent.get(`/api/pets/${pet.id}/clinic`).expect(200)).body.data,
+    ).toBeNull();
+  });
+
+  it("confirms, declines, and holds appointment requests", async () => {
+    const agent = request.agent(app);
+    await register(agent);
+    const pet = (await createPet(agent)).body.data;
+    const tuesday = await book(agent, pet.id, nextWeekday(2));
+    const sunday = await book(agent, pet.id, nextWeekday(0));
+
+    expect((await send(agent, pet.id, tuesday)).status).toBe(409); // no clinic yet
+
+    await link(agent, pet.id, "happypaws-downtown");
+    const confirmed = await send(agent, pet.id, tuesday);
+    expect(confirmed.status).toBe(201);
+    expect(confirmed.body.data.status).toBe("CONFIRMED");
+    expect(confirmed.body.data.externalReference).toMatch(/^SIM-/);
+
+    const declined = await send(agent, pet.id, sunday);
+    expect(declined.body.data.status).toBe("DECLINED");
+    expect(declined.body.data.message).toContain("closed");
+
+    await link(agent, pet.id, "riverside-vet");
+    const pending = await send(agent, pet.id, tuesday);
+    expect(pending.body.data.status).toBe("PENDING");
+    const requests = await agent
+      .get(`/api/pets/${pet.id}/clinic/requests`)
+      .expect(200);
+    const forTuesday = requests.body.data.find(
+      (item: { appointmentId: string }) => item.appointmentId === tuesday,
+    );
+    expect(forTuesday.status).toBe("PENDING");
+
+    const clinicNotices = await prisma.notification.count({
+      where: { type: "CLINIC" },
+    });
+    expect(clinicNotices).toBe(2);
+
+    const cancelToken = await csrf(agent);
+    await agent
+      .patch(`/api/appointments/${sunday}`)
+      .set("x-csrf-token", cancelToken)
+      .send({ status: "CANCELLED" })
+      .expect(200);
+    expect((await send(agent, pet.id, sunday)).status).toBe(409);
+  });
+
+  it("rejects cross-user clinic access", async () => {
+    const owner = request.agent(app);
+    await register(owner);
+    const pet = (await createPet(owner)).body.data;
+    const appointmentId = await book(owner, pet.id, nextWeekday(2));
+    await link(owner, pet.id, "happypaws-downtown");
+
+    const other = request.agent(app);
+    await register(other, "sam@example.com", "Sam Lee");
+    await other.get(`/api/pets/${pet.id}/clinic`).expect(404);
+    expect((await link(other, pet.id, "happypaws-downtown")).status).toBe(404);
+    expect((await send(other, pet.id, appointmentId)).status).toBe(404);
+    await other.get(`/api/pets/${pet.id}/clinic/requests`).expect(404);
   });
 });
 

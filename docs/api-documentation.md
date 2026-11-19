@@ -236,6 +236,64 @@ Authentication, ownership, and CSRF required. Body: `{ "caption": "New caption" 
 
 Authentication, ownership, and CSRF required. Returns HTTP 204.
 
+## Notifications and reminders
+
+Notifications are created by the reminder service, never by the client. Types are `MEDICATION` (a scheduled dose is due), `APPOINTMENT` (an appointment is inside the owner's lead window), and `CLINIC` (a clinic answered an appointment request). Every notification has a unique key, so a reminder is created exactly once even though the check runs every minute inside the API process and again whenever the web app polls `GET /notifications`.
+
+A medication reminder is created from a dose's scheduled time until 60 minutes later, using the owner's time zone. Users who have not yet saved a time zone receive no reminders, because reminders could otherwise fire at the wrong hour. The web app saves the browser's time zone automatically after login. Notifications older than 30 days are deleted.
+
+### `GET /notifications`
+
+Authentication required. Creates any reminders that are due for the current user, then returns `{ "items": [...], "unreadCount": 0 }` with the 50 most recent notifications. Each item has `id`, `petId`, `type`, `title`, `message`, `dueAt`, `readAt`, `createdAt`, and `pet` (`id`, `name`).
+
+### `POST /notifications/:id/read`
+
+Authentication and CSRF required. Marks one notification as read. Returns the notification.
+
+### `POST /notifications/read-all`
+
+Authentication and CSRF required. Marks every unread notification as read. Returns `{ "updated": 3 }`.
+
+### `GET /notifications/preferences`
+
+Authentication required. Returns `timeZone` (`null` until saved), `medicationReminders`, `appointmentReminders`, and `appointmentLeadHours`.
+
+### `PATCH /notifications/preferences`
+
+Authentication and CSRF required. Accepts one or more of `timeZone` (an IANA name such as `America/Toronto`), `medicationReminders` (boolean), `appointmentReminders` (boolean), and `appointmentLeadHours` (1-72). Returns the saved preferences.
+
+## Veterinary clinic interface
+
+PetCare talks to clinics only through the `ClinicGateway` contract described in `docs/clinic-interface.md`. The current implementation is a simulated clinic service, as planned in the project risk register, so the feature can be demonstrated and tested without a real clinic system.
+
+### `GET /clinics`
+
+Authentication required. Returns the clinic directory: `id`, `name`, `address`, `phone`, `email`, `hours`, and `acceptsAfterReview`.
+
+### `GET /pets/:petId/clinic`
+
+Authentication and pet ownership required. Returns the pet's linked clinic (`clinic`, `linkedAt`, `lastSharedAt`, `lastSharedCount`) or `null`.
+
+### `PUT /pets/:petId/clinic`
+
+Authentication, ownership, and CSRF required. Body: `{ "clinicId": "happypaws-downtown" }`. Links the pet to a clinic, replacing any earlier link. Unknown clinics return 404.
+
+### `DELETE /pets/:petId/clinic`
+
+Authentication, ownership, and CSRF required. Removes the link. Returns HTTP 204.
+
+### `POST /pets/:petId/clinic/share-records`
+
+Authentication, ownership, and CSRF required. Sends the pet's health records to the linked clinic and returns `{ "receiptId", "sharedCount", "sharedAt" }`. Returns 409 when no clinic is linked or the pet has no health records.
+
+### `GET /pets/:petId/clinic/requests`
+
+Authentication and ownership required. Returns the pet's appointment requests (`id`, `appointmentId`, `clinicId`, `externalReference`, `status`, `message`, `submittedAt`, `updatedAt`). Pending requests are re-checked with the clinic on every call.
+
+### `POST /pets/:petId/clinic/requests`
+
+Authentication, ownership, and CSRF required. Body: `{ "appointmentId": "<uuid>" }`. Sends a scheduled, future appointment to the linked clinic. Returns HTTP 201 with the request. `status` is `CONFIRMED`, `DECLINED`, or `PENDING`. Sending the same appointment again replaces its earlier request. Returns 409 when no clinic is linked or the appointment is not scheduled or is in the past.
+
 ## Dashboard and service status
 
 ### `GET /dashboard`

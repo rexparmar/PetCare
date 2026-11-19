@@ -1,5 +1,6 @@
 import {
   Activity,
+  Bell,
   CalendarDays,
   HeartPulse,
   Images,
@@ -8,15 +9,18 @@ import {
   Menu,
   PawPrint,
   Pill,
+  Stethoscope,
   UserRound,
   X,
 } from "lucide-react";
 import { useState } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
+import { useNotifications } from "../../hooks/useNotifications";
 import { api } from "../../services/api";
 import { useToast } from "../ui/Toast";
 import { Brand } from "./Brand";
+import { NotificationWatcher } from "./NotificationWatcher";
 
 const navItems = [
   { to: "/dashboard", label: "Overview", icon: LayoutDashboard },
@@ -26,6 +30,8 @@ const navItems = [
   { to: "/medications", label: "Medications", icon: Pill },
   { to: "/activities", label: "Activity", icon: Activity },
   { to: "/photos", label: "Photos", icon: Images },
+  { to: "/clinics", label: "Clinics", icon: Stethoscope },
+  { to: "/notifications", label: "Notifications", icon: Bell },
   { to: "/account", label: "My account", icon: UserRound },
 ];
 
@@ -34,6 +40,7 @@ export function AppShell() {
   const { showToast } = useToast();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
+  const unread = useNotifications().data?.unreadCount ?? 0;
 
   async function logout() {
     try {
@@ -76,6 +83,14 @@ export function AppShell() {
           >
             <Icon size={19} aria-hidden="true" />
             {label}
+            {to === "/notifications" && unread > 0 && (
+              <span
+                className="ml-auto rounded-full bg-rose-500 px-2 py-0.5 text-xs font-bold text-white"
+                aria-label={`${unread} unread`}
+              >
+                {unread}
+              </span>
+            )}
           </NavLink>
         ))}
       </nav>
@@ -129,6 +144,7 @@ export function AppShell() {
           <Menu />
         </button>
       </header>
+      <NotificationWatcher />
       <main className="lg:pl-64">
         <div className="mx-auto max-w-7xl px-4 py-7 sm:px-7 lg:px-9 lg:py-9">
           <Outlet />

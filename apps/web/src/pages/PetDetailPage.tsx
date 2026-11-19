@@ -8,6 +8,7 @@ import {
   Images,
   Pill,
   Scale,
+  Stethoscope,
   Trash2,
 } from "lucide-react";
 import { useState } from "react";
@@ -143,6 +144,12 @@ export function PetDetailPage() {
               className={`${buttonClass("secondary")} w-full justify-start`}
             >
               <Images size={18} className="text-pine-600" /> Photo gallery
+            </Link>
+            <Link
+              to={`/pets/${pet.id}/clinic`}
+              className={`${buttonClass("secondary")} w-full justify-start`}
+            >
+              <Stethoscope size={18} className="text-pine-600" /> Veterinary clinic
             </Link>
             <Link
               to={`/appointments/new?petId=${pet.id}`}
