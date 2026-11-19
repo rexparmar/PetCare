@@ -49,3 +49,10 @@ All entries reflect implementation work performed on October 8, 2026 (America/To
 - Pinned compatible Prisma 6.12 and upgraded Vitest/Tailwind to versions without the reported advisories.
 - Regenerated Prisma Client and reran lint, tests, browser workflow, and production builds.
 - Final quality checkpoint: 18 tests passed, lint passed, builds passed, and full `npm audit` reported 0 vulnerabilities.
+
+## Native PostgreSQL setup follow-up
+
+- Confirmed Homebrew PostgreSQL 16 was installed and running when Docker was unavailable for local application startup.
+- Created the configured `petcare` development role and database, granted the role development-only `CREATEDB` permission for Prisma's shadow database, and applied the migration.
+- Corrected root Prisma scripts to resolve the executable from the API workspace while loading the root `.env`.
+- Verified the registration page and CSRF endpoint return HTTP 200; an intentionally invalid registration reached the correct route and returned HTTP 400 validation rather than 404.

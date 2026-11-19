@@ -15,9 +15,9 @@
     "lint": "npm run lint -w @petcare/api && npm run lint -w @petcare/web",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "db:generate": "prisma generate --schema apps/api/prisma/schema.prisma",
-    "db:migrate": "prisma migrate dev --schema apps/api/prisma/schema.prisma",
-    "db:studio": "prisma studio --schema apps/api/prisma/schema.prisma"
+    "db:generate": "npm exec --prefix apps/api -- prisma generate --schema apps/api/prisma/schema.prisma",
+    "db:migrate": "npm exec --prefix apps/api -- prisma migrate dev --schema apps/api/prisma/schema.prisma",
+    "db:studio": "npm exec --prefix apps/api -- prisma studio --schema apps/api/prisma/schema.prisma"
   },
   "devDependencies": {
     "concurrently": "^9.2.1",

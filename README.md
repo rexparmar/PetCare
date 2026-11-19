@@ -53,7 +53,7 @@ PetCare/
 
 ## Local setup
 
-Prerequisites: Node.js 20+, npm 10+, and Docker with Compose.
+Prerequisites: Node.js 20+, npm 10+, and either Docker with Compose or PostgreSQL 16.
 
 ```bash
 cp .env.example .env
@@ -65,6 +65,22 @@ npm run dev
 ```
 
 Open `http://localhost:5173`. The API listens on `http://localhost:4000`.
+
+### macOS without Docker
+
+When PostgreSQL 16 is installed through Homebrew, create the development role and database once:
+
+```bash
+brew services start postgresql@16
+createuser --login --createdb petcare
+psql -d postgres -c "ALTER ROLE petcare PASSWORD 'petcare';"
+createdb --owner=petcare petcare
+npm run db:generate
+npm run db:migrate
+npm run dev
+```
+
+If the role or database already exists, skip its corresponding creation command.
 
 The root `.env` is loaded by both workspaces. Change `WEB_ORIGIN`, `DATABASE_URL`, or `VITE_API_URL` there if different ports are needed. In production, use a strong database password, HTTPS, and `NODE_ENV=production`; the session and CSRF cookies then use the `Secure` flag.
 
