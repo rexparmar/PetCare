@@ -36,6 +36,18 @@ enum ActivityType {
   OTHER
 }
 
+enum NotificationType {
+  MEDICATION
+  APPOINTMENT
+  CLINIC
+}
+
+enum ClinicRequestStatus {
+  PENDING
+  CONFIRMED
+  DECLINED
+}
+
 enum MedicationFrequency {
   ONCE_DAILY
   TWICE_DAILY
@@ -44,14 +56,16 @@ enum MedicationFrequency {
 }
 
 model User {
-  id           String        @id @default(uuid()) @db.Uuid
-  fullName     String        @db.VarChar(120)
-  email        String        @unique @db.VarChar(320)
-  passwordHash String
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
-  sessions     Session[]
-  pets         Pet[]
+  id                     String                  @id @default(uuid()) @db.Uuid
+  fullName               String                  @db.VarChar(120)
+  email                  String                  @unique @db.VarChar(320)
+  passwordHash           String
+  createdAt              DateTime                @default(now())
+  updatedAt              DateTime                @updatedAt
+  sessions               Session[]
+  pets                   Pet[]
+  notifications          Notification[]
+  notificationPreference NotificationPreference?
 }
 
 model Session {
@@ -84,6 +98,8 @@ model Pet {
   medications   Medication[]
   activities    Activity[]
   photos        PetPhoto[]
+  notifications Notification[]
+  clinicLink    ClinicLink?
 
   @@index([ownerId])
   @@index([ownerId, name])
@@ -105,16 +121,17 @@ model HealthRecord {
 }
 
 model Appointment {
-  id              String            @id @default(uuid()) @db.Uuid
-  petId           String            @db.Uuid
+  id              String                    @id @default(uuid()) @db.Uuid
+  petId           String                    @db.Uuid
   appointmentDate DateTime
-  providerName    String            @db.VarChar(150)
-  reason          String            @db.VarChar(200)
+  providerName    String                    @db.VarChar(150)
+  reason          String                    @db.VarChar(200)
   notes           String?
-  status          AppointmentStatus @default(SCHEDULED)
-  createdAt       DateTime          @default(now())
-  updatedAt       DateTime          @updatedAt
-  pet             Pet               @relation(fields: [petId], references: [id], onDelete: Cascade)
+  status          AppointmentStatus         @default(SCHEDULED)
+  createdAt       DateTime                  @default(now())
+  updatedAt       DateTime                  @updatedAt
+  pet             Pet                       @relation(fields: [petId], references: [id], onDelete: Cascade)
+  clinicRequest   ClinicAppointmentRequest?
 
   @@index([petId])
   @@index([appointmentDate, status])
@@ -165,4 +182,54 @@ model PetPhoto {
   pet       Pet      @relation(fields: [petId], references: [id], onDelete: Cascade)
 
   @@index([petId, createdAt])
+}
+
+model NotificationPreference {
+  userId               String   @id @db.Uuid
+  timeZone             String   @db.VarChar(64)
+  medicationReminders  Boolean  @default(true)
+  appointmentReminders Boolean  @default(true)
+  appointmentLeadHours Int      @default(24)
+  updatedAt            DateTime @updatedAt
+  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Notification {
+  id        String           @id @default(uuid()) @db.Uuid
+  userId    String           @db.Uuid
+  petId     String?          @db.Uuid
+  type      NotificationType
+  title     String           @db.VarChar(160)
+  message   String           @db.VarChar(500)
+  dueAt     DateTime
+  dedupeKey String           @db.VarChar(200)
+  readAt    DateTime?
+  createdAt DateTime         @default(now())
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  pet       Pet?             @relation(fields: [petId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, dedupeKey])
+  @@index([userId, readAt, dueAt])
+}
+
+model ClinicLink {
+  id              String    @id @default(uuid()) @db.Uuid
+  petId           String    @unique @db.Uuid
+  clinicId        String    @db.VarChar(50)
+  linkedAt        DateTime  @default(now())
+  lastSharedAt    DateTime?
+  lastSharedCount Int       @default(0)
+  pet             Pet       @relation(fields: [petId], references: [id], onDelete: Cascade)
+}
+
+model ClinicAppointmentRequest {
+  id                String              @id @default(uuid()) @db.Uuid
+  appointmentId     String              @unique @db.Uuid
+  clinicId          String              @db.VarChar(50)
+  externalReference String              @db.VarChar(80)
+  status            ClinicRequestStatus
+  message           String?             @db.VarChar(300)
+  submittedAt       DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  appointment       Appointment         @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
 }

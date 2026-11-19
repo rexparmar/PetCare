@@ -80,6 +80,68 @@ export interface PetPhoto {
   createdAt: string;
 }
 
+export type NotificationType = "MEDICATION" | "APPOINTMENT" | "CLINIC";
+
+export interface NotificationItem {
+  id: string;
+  petId: string | null;
+  type: NotificationType;
+  title: string;
+  message: string;
+  dueAt: string;
+  readAt: string | null;
+  createdAt: string;
+  pet: { id: string; name: string } | null;
+}
+
+export interface NotificationList {
+  items: NotificationItem[];
+  unreadCount: number;
+}
+
+export interface NotificationPreferences {
+  timeZone: string | null;
+  medicationReminders: boolean;
+  appointmentReminders: boolean;
+  appointmentLeadHours: number;
+}
+
+export interface Clinic {
+  id: string;
+  name: string;
+  address: string;
+  phone: string;
+  email: string;
+  hours: string;
+  acceptsAfterReview: boolean;
+}
+
+export interface PetClinicLink {
+  clinic: Clinic | null;
+  linkedAt: string;
+  lastSharedAt: string | null;
+  lastSharedCount: number;
+}
+
+export type ClinicRequestStatus = "PENDING" | "CONFIRMED" | "DECLINED";
+
+export interface ClinicRequest {
+  id: string;
+  appointmentId: string;
+  clinicId: string;
+  externalReference: string;
+  status: ClinicRequestStatus;
+  message: string | null;
+  submittedAt: string;
+  updatedAt: string;
+}
+
+export interface RecordsReceipt {
+  receiptId: string;
+  sharedCount: number;
+  sharedAt: string;
+}
+
 export interface Appointment {
   id: string;
   petId: string;

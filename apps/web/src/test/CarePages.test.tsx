@@ -5,7 +5,9 @@ import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ToastProvider } from "../components/ui/Toast";
 import { ActivitiesPage } from "../pages/ActivitiesPage";
+import { ClinicPage } from "../pages/ClinicPage";
 import { MedicationsPage } from "../pages/MedicationsPage";
+import { NotificationsPage } from "../pages/NotificationsPage";
 import { PhotosPage } from "../pages/PhotosPage";
 import { api, apiBlob } from "../services/api";
 
@@ -151,5 +153,124 @@ describe("care pages", () => {
     mockApi({ "/pets/p1/photos": [] });
     renderAt("/pets/p1/photos", "/pets/:petId/photos", <PhotosPage />);
     expect(await screen.findByText("No photos yet")).toBeInTheDocument();
+  });
+  it("shows reminders and marks one as read", async () => {
+    const user = userEvent.setup();
+    mockApi({
+      "/notifications": {
+        unreadCount: 1,
+        items: [
+          {
+            id: "n1",
+            petId: "p1",
+            type: "MEDICATION",
+            title: "Milo: time for Amoxicillin",
+            message: "Give 1 tablet (08:00).",
+            dueAt: "2026-11-19T13:00:00.000Z",
+            readAt: null,
+            createdAt: "2026-11-19T13:00:00.000Z",
+            pet: { id: "p1", name: "Milo" },
+          },
+        ],
+      },
+      "/notifications/preferences": {
+        timeZone: "America/Toronto",
+        medicationReminders: true,
+        appointmentReminders: true,
+        appointmentLeadHours: 24,
+      },
+      "/notifications/n1/read": {},
+    });
+    renderAt("/notifications", "/notifications", <NotificationsPage />);
+
+    expect(
+      await screen.findByText("Milo: time for Amoxicillin"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Give 1 tablet (08:00).")).toBeInTheDocument();
+    expect(await screen.findByText(/America\/Toronto/)).toBeInTheDocument();
+    expect(screen.getByLabelText("Remind me about appointments")).toHaveValue(
+      "24",
+    );
+
+    await user.click(
+      screen.getByRole("button", {
+        name: /mark "milo: time for amoxicillin" as read/i,
+      }),
+    );
+    expect(api).toHaveBeenCalledWith("/notifications/n1/read", {
+      method: "POST",
+    });
+  });
+
+  it("shows the linked clinic, request status, and shares records", async () => {
+    const user = userEvent.setup();
+    const clinic = {
+      id: "happypaws-downtown",
+      name: "HappyPaws Downtown Clinic",
+      address: "120 Bank Street, Ottawa, ON",
+      phone: "(613) 555-0101",
+      email: "downtown@happypaws.example",
+      hours: "Mon-Fri 9:00 a.m. - 5:00 p.m.",
+      acceptsAfterReview: false,
+    };
+    mockApi({
+      "/pets/p1/clinic": {
+        clinic,
+        linkedAt: "2026-11-19T12:00:00.000Z",
+        lastSharedAt: null,
+        lastSharedCount: 0,
+      },
+      "/clinics": [clinic],
+      "/appointments": [
+        {
+          id: "a1",
+          petId: "p1",
+          appointmentDate: new Date(Date.now() + 3 * 86_400_000).toISOString(),
+          providerName: "HappyPaws Clinic",
+          reason: "Annual exam",
+          notes: null,
+          status: "SCHEDULED",
+          createdAt: "",
+          updatedAt: "",
+          pet: { id: "p1", name: "Milo", species: "Dog" },
+        },
+      ],
+      "/pets/p1/clinic/requests": [
+        {
+          id: "r1",
+          appointmentId: "a1",
+          clinicId: clinic.id,
+          externalReference: "SIM-1234ABCD",
+          status: "CONFIRMED",
+          message: "Confirmed by HappyPaws Downtown Clinic.",
+          submittedAt: "",
+          updatedAt: "",
+        },
+      ],
+      "/pets/p1/clinic/share-records": {
+        receiptId: "REC-1",
+        sharedCount: 2,
+        sharedAt: "2026-11-19T13:00:00.000Z",
+      },
+    });
+    renderAt("/pets/p1/clinic", "/pets/:petId/clinic", <ClinicPage />);
+
+    expect(await screen.findByText(/demo clinic network/i)).toBeInTheDocument();
+    expect(
+      screen.getAllByText("HappyPaws Downtown Clinic").length,
+    ).toBeGreaterThan(1);
+    expect(screen.getByText("Annual exam")).toBeInTheDocument();
+    expect(screen.getByText("Confirmed")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /send again/i }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Linked" })).toBeDisabled();
+
+    await user.click(
+      screen.getByRole("button", { name: /share health records/i }),
+    );
+    expect(api).toHaveBeenCalledWith("/pets/p1/clinic/share-records", {
+      method: "POST",
+    });
   });
 });
